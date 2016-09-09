@@ -45,6 +45,16 @@ SINGLE_QUOTED_STRING_REGEX = r"^(?:\')\s*(\w+|\_)\s*(?:\')"
 DOUBLE_QUOTED_STRING_REGEX = r'^(?:\")\s*(\w+|\_)\s*(?:\")'
 UNICODE_MULTILINE_REGEX_FLAG = re.MULTILINE + re.UNICODE
 
+GETTEXT_FUNCTION_NAMES = [
+    '_',
+    '_lazy',
+    'ugettext',
+    'ugettext_lazy'
+    'ungettext',
+    'ungettext_lazy',
+    'gettext_noop'
+]
+
 
 def is_number(text):
     """Returns True if this text is a representation of a number"""
@@ -401,8 +411,7 @@ class MissingGettextChecker(FormatChecker):
                 if isinstance(curr_node, CallFunc):
                     if (hasattr(curr_node, 'func')
                             and hasattr(curr_node.func, 'name')):
-                        if (curr_node.func.name in [
-                                '_', 'ungettext', 'ungettext_lazy']):
+                        if (curr_node.func.name in GETTEXT_FUNCTION_NAMES):
                             # we're in a _() call
                             string_ok = True
                             break
