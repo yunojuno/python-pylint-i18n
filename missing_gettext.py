@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-""" :class:`MissingGettextChecker`, extenting ``BaseChecker`` of PyLint. """
+""" :class:`MissingGettextChecker`, extenting ``FormatChecker`` of PyLint. """
 
 # pylint: disable=E0611
 # pylint: disable=F0401
@@ -14,21 +14,20 @@
 
 import re
 import string
+import tokenize
 
 from os import getenv, path
 
-try:
-    from logilab import astng
-    from logilab.astng.node_classes import *
-except ImportError:
-    import astroid
-    from astroid.node_classes import *
+import astroid
+from astroid.node_classes import *
 
 try:
     from pylint.interfaces import IAstroidChecker
 except ImportError:
     # fallback to older pylint naming
     from pylint.interfaces import IASTNGChecker as IAstroidChecker
+
+from pylint.checkers.format import FormatChecker, ContinuedLineState
 
 try:
     # ``urllib.parse`` is new (since Python 3.3), so may not be available to
@@ -38,18 +37,13 @@ try:
 except ImportError:
     _PARSE_URL = False
 
-WHITELIST_SINGLE_QUOTED_STRINGS = (
-    getenv('WHITELIST_SINGLE_QUOTED_STRINGS', "False") == "True"
-)
-
 SELECTED_QUOTED_STRINGS_TO_IGNORE = getenv(
     'SELECTED_QUOTED_STRINGS_TO_IGNORE', []
 )
 
-SINGLE_QUOTED_STRING_REGEX = r"(?:\')\s*(\w+|\_)\s*(?:\')" 
+SINGLE_QUOTED_STRING_REGEX = r"^(?:\')\s*(\w+|\_)\s*(?:\')"
+DOUBLE_QUOTED_STRING_REGEX = r'^(?:\")\s*(\w+|\_)\s*(?:\")'
 UNICODE_MULTILINE_REGEX_FLAG = re.MULTILINE + re.UNICODE
-
-from pylint.checkers import BaseChecker
 
 
 def is_number(text):
@@ -193,19 +187,27 @@ def _is_path(text):
     return result
 
 
-class MissingGettextChecker(BaseChecker):
+class MissingGettextChecker(FormatChecker):
 
     """
     Checks for strings that aren't wrapped in a _ call somewhere
     """
 
-    __implements__ = IAstroidChecker  # pylint: disable=F0220
-
     name = 'missing_gettext'
     msgs = {
         'W9903': ('non-gettext-ed string %r',
+                  'no-gettext',
                   "There is a raw string that's not passed through gettext"),
+        'W9904': ('Possible key/const wrapped in double quotes %r',
+                  'double-quotes-key',
+                  'Keys/constants should be wrapped in single quotes'),
     }
+    # options = []
+    options = (
+        ('whitelist-single-quoted',
+         {'default': False, 'type': 'yn', 'metavar': '<y_or_n>',
+          'help': 'Whitelist strings that look like keys but warn if wrapped in double quotes'}),
+    )
 
     # this is important so that your checker is executed before others
     priority = -1
@@ -249,11 +251,12 @@ class MissingGettextChecker(BaseChecker):
 
             # sending http header
             lambda x: x.startswith("text/html; charset="),
+
         ]
 
-        if WHITELIST_SINGLE_QUOTED_STRINGS:
+        if self.config.whitelist_single_quoted:
             whitelisted_strings.append(
-                lambda x: re.findall(SINGLE_QUOTED_STRING_REGEX, x, UNICODE_MULTILINE_REGEX_FLAG)
+                lambda x: x in getattr(self, 'tokenizer_whitelist', [])
             )
         elif SELECTED_QUOTED_STRINGS_TO_IGNORE:
             # still allow excluding just some strings
@@ -429,7 +432,42 @@ class MissingGettextChecker(BaseChecker):
         if not string_ok:
             # we've gotten to the top of the code tree / file level and we
             # haven't been whitelisted,fi so add an error here
-            self.add_message('W9903', node=node, args=node.value)
+            self.add_message('W9903', line=node.fromlineno, args=(node.value, ))
+
+    def process_tokens(self, tokens):
+
+        # TODO: Initialising all the below might not be needed:
+        self._bracket_stack = [None]
+        indents = [0]
+        check_equal = False
+        line_num = 0
+        self._lines = {}
+        self._visited_lines = {}
+        token_handlers = self._prepare_token_dispatcher()
+        self._last_line_ending = None
+        last_blank_line_num = 0
+        # TODO END -------
+
+        self.tokenizer_whitelist = []
+
+        if not self.config.whitelist_single_quoted:
+            return
+
+        self._current_line = ContinuedLineState(tokens, self.config)
+        for idx, (tok_type, token, start, _, line) in enumerate(tokens):
+            if start[0] != line_num:
+                line_num = start[0]
+
+            if tok_type != tokenize.STRING:
+                continue
+
+            no_quotes_string = token[1:-1]
+
+            if re.findall(DOUBLE_QUOTED_STRING_REGEX, token, UNICODE_MULTILINE_REGEX_FLAG):
+                self.add_message('W9904', line=line_num, args=(token, ))
+                self.tokenizer_whitelist.append(no_quotes_string)
+            elif re.findall(SINGLE_QUOTED_STRING_REGEX, token, UNICODE_MULTILINE_REGEX_FLAG):
+                self.tokenizer_whitelist.append(no_quotes_string)
 
 
 def register(linter):
