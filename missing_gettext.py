@@ -44,6 +44,7 @@ SELECTED_QUOTED_STRINGS_TO_IGNORE = getenv(
 SINGLE_QUOTED_STRING_REGEX = r"^(?:\')\s*(\w+|\_)\s*(?:\')"
 DOUBLE_QUOTED_STRING_REGEX = r'^(?:\")\s*(\w+|\_)\s*(?:\")'
 UNICODE_MULTILINE_REGEX_FLAG = re.MULTILINE + re.UNICODE
+UNNAMED_POSITIONAL_PLACEHOLDER_REGEX = r'(\%\w|\{\})'
 
 GETTEXT_FUNCTION_NAMES = [
     '_',
@@ -208,15 +209,39 @@ class MissingGettextChecker(FormatChecker):
         'W9903': ('non-gettext-ed string %r',
                   'no-gettext',
                   "There is a raw string that's not passed through gettext"),
-        'W9904': ('Possible key/const wrapped in double quotes %r',
+        'W9912': ('Possible key/const wrapped in double quotes %r',
                   'double-quotes-key',
                   'Keys/constants should be wrapped in single quotes'),
+        'W9913': ('Variable placeholder in string lacks name %r',
+                  'positional-placeholder',
+                  'All variable placeholders should be named'),
     }
     # options = []
     options = (
-        ('whitelist-single-quoted',
-         {'default': False, 'type': 'yn', 'metavar': '<y_or_n>',
-          'help': 'Whitelist strings that look like keys but warn if wrapped in double quotes'}),
+        (
+            'whitelist-single-quoted',
+            {
+                'default': False,
+                'type': 'yn',
+                'metavar': '<y_or_n>',
+                'help': (
+                    'Whitelist strings that look like keys but'
+                    ' warn if wrapped in double quotes'
+                )
+            }
+        ),
+        (
+            'check-string-placeholders',
+            {
+                'default': False,
+                'type': 'yn',
+                'metavar': '<y_or_n>',
+                'help': (
+                    'Warn about positional (ie, not named) '
+                    'placeholders in strings'
+                )
+            }
+        ),
     )
 
     # this is important so that your checker is executed before others
@@ -472,11 +497,29 @@ class MissingGettextChecker(FormatChecker):
 
             no_quotes_string = token[1:-1]
 
-            if re.findall(DOUBLE_QUOTED_STRING_REGEX, token, UNICODE_MULTILINE_REGEX_FLAG):
-                self.add_message('W9904', line=line_num, args=(token, ))
+            if re.findall(
+                DOUBLE_QUOTED_STRING_REGEX,
+                token,
+                UNICODE_MULTILINE_REGEX_FLAG
+            ):
+                self.add_message('W9912', line=line_num, args=(token, ))
                 self.tokenizer_whitelist.append(no_quotes_string)
-            elif re.findall(SINGLE_QUOTED_STRING_REGEX, token, UNICODE_MULTILINE_REGEX_FLAG):
+            elif re.findall(
+                SINGLE_QUOTED_STRING_REGEX,
+                token,
+                UNICODE_MULTILINE_REGEX_FLAG
+            ):
                 self.tokenizer_whitelist.append(no_quotes_string)
+
+            # Also look for positional placeholder strings
+
+            if self.config.check_string_placeholders:
+                if re.findall(
+                    UNNAMED_POSITIONAL_PLACEHOLDER_REGEX,
+                    token,
+                    UNICODE_MULTILINE_REGEX_FLAG
+                ):
+                    self.add_message('W9913', line=line_num, args=(token, ))
 
 
 def register(linter):
