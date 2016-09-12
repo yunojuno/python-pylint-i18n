@@ -8,3 +8,5 @@ Invoke it with
 `pylint some_module.py --load-plugins=missing_gettext --disable=all --enable=missing_gettext --whitelist-single-quoted=y`
 
 The `whitelist-single-quoted` option is probably only useful if you have a house style where keys and other never-to-be-translated strings are in single quotes (and you've got enough code review happening to protect against infractions) 
+
+The `check-string-placeholders` option is handy for catching files where `%s` or `{}` is being used instead of a named variant. 
