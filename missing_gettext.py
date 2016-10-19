@@ -41,8 +41,8 @@ SELECTED_QUOTED_STRINGS_TO_IGNORE = getenv(
     'SELECTED_QUOTED_STRINGS_TO_IGNORE', []
 )
 
-SINGLE_QUOTED_STRING_REGEX = r"^(?:\')\s*([\w\@\.\-]+)\s*(?:\')"
-DOUBLE_QUOTED_STRING_REGEX = r'^(?:\")\s*([\w\@\.\-]+)\s*(?:\")'
+SINGLE_QUOTED_STRING_REGEX = r"^(?:\')\s*([\w\@\.\-\/\:]+)\s*(?:\')"
+DOUBLE_QUOTED_STRING_REGEX = r'^(?:\")\s*([\w\@\.\-\/\:]+)\s*(?:\")'
 UNICODE_MULTILINE_REGEX_FLAG = re.MULTILINE + re.UNICODE
 UNNAMED_POSITIONAL_PLACEHOLDER_REGEX = r'(\%\w|\{\})'
 
